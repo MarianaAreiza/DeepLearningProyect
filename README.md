@@ -34,12 +34,12 @@ yaourt -S nvidia nvidia-utils cuda
 conda install -c conda-forge matplotlib 
 ```
 
--**Pandas**. Es una librería de python destinada al análisis de datos, que proporciona unas estructuras de datos flexibles y que permiten trabajar con ellos de forma muy eficiente.
+- **Pandas**. Es una librería de python destinada al análisis de datos, que proporciona unas estructuras de datos flexibles y que permiten trabajar con ellos de forma muy eficiente.
 ```
 conda install -c conda-forge pandas
 ```
 
--**openCV**. Es una biblioteca libre de visión artificial originalmente desarrollada por Intel.
+- **openCV**. Es una biblioteca libre de visión artificial originalmente desarrollada por Intel.
 ```
 conda install -c conda-forge opencv
 ```
