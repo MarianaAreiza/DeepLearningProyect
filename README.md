@@ -53,7 +53,7 @@ https://www.sublimetext.com/3
 
 luego hay que configurarlo para que funcione correctamente con ANACONDA, para eso, presionaremos la tecla:
 ```
-Control + ALT + P
+Control + SHIFT + P
 ```
 Luego se les abrirá un menu plegable y deberán escribir "install", presionar enter, les deber[ia aparecer un mensaje de finalizado, luego abrir nuevamente el menú plegable y escribir "install", les deberá aparecer otras opciones, en este caso presional el que dice "Package Cotrol: Install Package", les abrirá un menú similar al anterior y luego escriben "CONDA", deberán presionar enter donde solo aparezca "CONDA", les abrirá una pestaña con un texto, eso significa que ya está instalado, luego debén presionar en el menú de arriba "Tools/Build System/Conda".
 
