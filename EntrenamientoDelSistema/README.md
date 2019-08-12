@@ -23,34 +23,45 @@ import itertools
 import shutil
 import matplotlib.pyplot as plt
 import time
+mport seaborn as sn
+import scikitplot as skplt
 ```
 #### 1 - Estructura del Sistema
 ```
-from matplotlib.pyplot import imshow
-from tensorflow.keras.layers import Dense, Dropout,GlobalAveragePooling2D
+from tensorflow.keras.applications.nasnet import NASNetLarge as PTModel, preprocess_input
+from tensorflow.keras.applications.densenet import DenseNet121, preprocess_input
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import categorical_crossentropy
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.models import Model
+from tensorflow.keras.applications.nasnet import NASNetMobile
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint,TensorBoard,LearningRateScheduler
-from tensorflow.keras.applications.densenet import DenseNet121, preprocess_input
+from tensorflow.keras.applications.xception import preprocess_input, decode_predictions
+from tensorflow.keras.layers import Activation, Dropout,Concatenate, Flatten, Dense, GlobalMaxPooling2D, GlobalAveragePooling2D,BatchNormalization, Input, Conv2D
+from tensorflow.keras.models import Sequential
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
+from tensorflow.keras.losses import mae, sparse_categorical_crossentropy, binary_crossentropy
+from tensorflow.keras.metrics import categorical_accuracy, top_k_categorical_accuracy
+from tensorflow.keras.models import Model
+import pandas as pd
+from sklearn.metrics import roc_curve, auc
 ```
 #### 2 - Estructura del Sistema
 - Luego de haber creado el perfíl hay que activarlo por medio de este código:
 ```
-train_path="img/train"
-valid_path="img/val"
+train_path="img2/train"
+valid_path="img2/val"
 
-train_batch_size = 10
-val_batch_size = 10
+
+train_batch_size = 16
+val_batch_size = 16
 size = 224
-steps= 600
+steps=500
 image_size = 224
-num_class= 3
+num_class= 2
 
-EPOCHS = 2
+EPOCHS =5
+
 
 datagen = ImageDataGenerator(preprocessing_function= preprocess_input)
 
@@ -62,36 +73,38 @@ test_batches = datagen.flow_from_directory(valid_path,
                                             target_size=(image_size,image_size),
                                             batch_size=1,
                                             shuffle=False)
+def get_model_classif_nasnet():
+    inputs = Input((size, size, 3))
+    base_model= DenseNet121(include_top=False, weights='imagenet',input_shape=(size, size, 3), classes=num_class)
+    x = base_model(inputs)
+    out1 = GlobalMaxPooling2D()(x)
+    out2 = GlobalAveragePooling2D()(x)
+    out3 = Flatten()(x)
+    out = Concatenate(axis=-1)([out1, out2, out3])
+    out = Dropout(0.5)(out)
+    out = Dense(num_class, activation="sigmoid", name="3_")(out)
+    model = Model(inputs, out)
+    model.compile(optimizer=Adam(lr=1e-4, decay=1e-9), loss='categorical_crossentropy', metrics=[categorical_accuracy])
+    model.summary()
 
-base_model= DenseNet121(include_top=False, weights='imagenet',input_shape=(size, size, 3), classes=num_class)
+    return model
+model = get_model_classif_nasnet()
 
-base_model.summary()
-
-len(base_model.layers)
-
-x = base_model.output
-x = GlobalAveragePooling2D()(x)
-x = Dense(1024, activation='relu')(x)
-predictions = Dense(num_class, activation='softmax')(x)
-model = Model(inputs=base_model.input, outputs=predictions)
-model.summary()
-
-import keras
-from keras import metrics
-
-model.compile(Adam(lr=1e-4, decay=1e-9), loss= 'categorical_crossentropy', metrics=[metrics.categorical_accuracy])
-print('estoy aqui')
 print(valid_batches.class_indices)
 
 weightpath = "./model/weights-{epoch:03d}-{val_loss:.3f}.hdf5"
 filepath = "model.h5"
 
-checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min', save_weights_only = True)
+checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+
 
 reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=10,verbose=1,
-				mode='auto',epsilon=0.0001, cooldown=5, min_lr=0.0001)
+                                mode='auto',epsilon=0.0001, cooldown=5, min_lr=0.0001)
+
 
 tensorboard = TensorBoard(log_dir="logs/{}".format(time.time()), batch_size=train_batch_size, write_images=True)
+
+
 
 callbacks_list = [checkpoint,reduce_lr,tensorboard]
 
@@ -99,20 +112,23 @@ history= model.fit_generator(train_batches, steps_per_epoch=steps,
                               class_weight=weightpath,
                     validation_data=valid_batches,
                     validation_steps=steps,
-                    epochs=30, verbose=1,
+                    epochs=EPOCHS, verbose=1,
                    callbacks=callbacks_list)
+
+
 
 print('SIGUIENTE ETAPA: VERIFICACION')
 
 
 pred_Y = model.predict(valid_batches, batch_size = train_batch_size, verbose = True)
+print('ya pase pred_Y')
 
 model.metrics_names
 
 print('comienza evaluacion: la ultima etapa')
 val_loss, val_cat_acc = \
 model.evaluate_generator(test_batches,
-                        steps=7669)
+                        steps=11669)
 
 print('val_loss:', val_loss)
 print('val_cat_acc:', val_cat_acc)
@@ -123,7 +139,7 @@ model.load_weights('model.h5')
 
 val_loss, val_cat_acc = \
 model.evaluate_generator(test_batches,
-                        steps=7669)
+                        steps=11669)
 
 print('val_loss:', val_loss)
 print('val_cat_acc:', val_cat_acc)
@@ -157,61 +173,37 @@ print('HE TERMINADO LA GRAFICA')
 
 test_labels = test_batches.classes
 test_batches.class_indices
-predictions = model.predict_generator(test_batches, steps=7669, verbose=1)
+predictions = model.predict_generator(test_batches, steps=11669, verbose=1)
 predictions.shape
 
-print('EMPEZANDO CON LA MATRIZ DE CONFUSION')
+print('EMPEZANDO CON MATRIZ DE CONFUSION')
 
-def plot_confusion_matrix(cm, classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.Blues):
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print("Normalized confusion matrix")
-    else:
-        print('Confusion matrix, without normalization')
-
-    print(cm)
-
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes, rotation=45)
-    plt.yticks(tick_marks, classes)
-
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, format(cm[i, j], fmt),
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
-
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-    plt.tight_layout()
-
-test_labels.shape
 cm = confusion_matrix(test_labels, predictions.argmax(axis=1))
 test_batches.class_indices
-cm_plot_labels = ['MASAS', 'NODULOS','SANAS']
+cm_plot_labels = ['masasYnodulos','sanas']
 
-plot_confusion_matrix(cm, cm_plot_labels, title='Confusion Matrix')
+df_cm = pd.DataFrame(cm, range(num_class), range(num_class))
+plt.figure(figsize = (20,14))
+sn.set(font_scale=1.4) #for label size
+sn.heatmap(df_cm, annot=True, annot_kws={"size": 12}) # font size
+plt.show()
 
 print('HE TERMINADO LA MATRIZ DE CONFUSION')
 
 print('GENERADOR DE REPORTE DE CLASIFICACION')
 
 y_pred = np.argmax(predictions, axis=1)
-y_true = test_batches.classesy_true = test_batches.classes
+y_true =test_batches.classes
 
 from sklearn.metrics import classification_report
 report = classification_report(y_true, y_pred, target_names=cm_plot_labels)
 print(report)
-
 print('HE TERMINADO EL REPORTE DE CLASIFICACION')
 print('ENTRENAMIENTO FINALIZADO')
+
+#ROC CURVE
+skplt.metrics.plot_roc(y_true,predictions,figsize=(20,14))
+plt.show()
 ```
 
 
